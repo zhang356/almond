@@ -10,6 +10,7 @@ import androidx.navigation.ui.navigateUp
 import androidx.navigation.ui.setupActionBarWithNavController
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import app.almondally.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
@@ -30,10 +31,8 @@ class MainActivity : AppCompatActivity() {
         appBarConfiguration = AppBarConfiguration(navController.graph)
         setupActionBarWithNavController(navController, appBarConfiguration)
 
-        binding.fab.setOnClickListener { view ->
-            Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                    .setAnchorView(R.id.fab)
-                    .setAction("Action", null).show()
+        binding.fabAsk.setOnClickListener { view ->
+            onAskButtonTapped(view)
         }
     }
 
@@ -48,7 +47,11 @@ class MainActivity : AppCompatActivity() {
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
         return when (item.itemId) {
-            R.id.action_settings -> true
+            R.id.action_start_stop -> {
+                onStartStopButtonTapped(item)
+                true
+            }
+
             else -> super.onOptionsItemSelected(item)
         }
     }
@@ -58,4 +61,26 @@ class MainActivity : AppCompatActivity() {
         return navController.navigateUp(appBarConfiguration)
                 || super.onSupportNavigateUp()
     }
+
+    private fun onAskButtonTapped(view: View) {
+        // switch to answer mode
+        Snackbar.make(view, "Ask button tapped", Snackbar.LENGTH_LONG)
+            .setAnchorView(R.id.fab_ask)
+            .show()
+    }
+
+    private fun onStartStopButtonTapped(item: MenuItem) {
+        if (item.title == resources.getString(R.string.start)) {
+            //start recording
+
+            //change text to stop
+            item.title = resources.getString(R.string.stop)
+        } else if (item.title == resources.getString(R.string.stop)) {
+            //stop recording
+
+            //change text to start
+            item.title = resources.getString(R.string.start)
+        }
+    }
+
 }
