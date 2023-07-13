@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.navigation.fragment.findNavController
 import app.almondally.databinding.FragmentFirstBinding
+import com.google.android.material.snackbar.Snackbar
 
 /**
  * A simple [Fragment] subclass as the default destination in the navigation.
@@ -35,10 +36,24 @@ class FirstFragment : Fragment() {
 //        binding.buttonFirst.setOnClickListener {
 //            findNavController().navigate(R.id.action_FirstFragment_to_SecondFragment)
 //        }
+
+        binding.fabAsk.setOnClickListener { view ->
+            onAskButtonTapped(view)
+        }
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
     }
+
+    private fun onAskButtonTapped(view: View) {
+        // switch to answer mode
+        Snackbar.make(view, "Ask button tapped", Snackbar.LENGTH_LONG)
+            .setAnchorView(R.id.fab_ask)
+            .show()
+
+
+    }
+
 }

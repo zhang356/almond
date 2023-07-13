@@ -3,4 +3,8 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="brown">#C6864B</color>
+    <color name="cream">#EFEBE5</color>
+    <color name="darkgrey">#484240</color>
+    <color name="lightgrey">#777164</color>
+
 </resources>

@@ -30,10 +30,6 @@ class MainActivity : AppCompatActivity() {
         val navController = findNavController(R.id.nav_host_fragment_content_main)
         appBarConfiguration = AppBarConfiguration(navController.graph)
         setupActionBarWithNavController(navController, appBarConfiguration)
-
-        binding.fabAsk.setOnClickListener { view ->
-            onAskButtonTapped(view)
-        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -60,13 +56,6 @@ class MainActivity : AppCompatActivity() {
         val navController = findNavController(R.id.nav_host_fragment_content_main)
         return navController.navigateUp(appBarConfiguration)
                 || super.onSupportNavigateUp()
-    }
-
-    private fun onAskButtonTapped(view: View) {
-        // switch to answer mode
-        Snackbar.make(view, "Ask button tapped", Snackbar.LENGTH_LONG)
-            .setAnchorView(R.id.fab_ask)
-            .show()
     }
 
     private fun onStartStopButtonTapped(item: MenuItem) {
