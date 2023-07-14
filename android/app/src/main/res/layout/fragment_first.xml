@@ -15,16 +15,14 @@
             android:layout_height="match_parent"
             android:padding="16dp">
 
-            <EditText
+            <TextView
                 android:id="@+id/question"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_margin="16dp"
-                android:hint="Tap to Speak"
                 android:text="@string/question"
-                android:textAlignment="textStart"
+                android:textAlignment="viewStart"
                 app:layout_constraintBottom_toTopOf="@id/answer"
-                app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
 
@@ -37,7 +35,6 @@
                 android:textAlignment="textEnd"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/question" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>
