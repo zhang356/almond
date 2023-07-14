@@ -15,11 +15,12 @@
             android:layout_height="match_parent"
             android:padding="16dp">
 
-            <TextView
+            <EditText
                 android:id="@+id/question"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_margin="16dp"
+                android:hint="Tap to Speak"
                 android:text="@string/question"
                 android:textAlignment="textStart"
                 app:layout_constraintBottom_toTopOf="@id/answer"
@@ -38,6 +39,7 @@
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/question" />
+
         </androidx.constraintlayout.widget.ConstraintLayout>
     </androidx.core.widget.NestedScrollView>
 
