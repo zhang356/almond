@@ -1,4 +1,4 @@
-package app.almondally
+package app.almondally.activity
 
 import android.os.Bundle
 import androidx.fragment.app.Fragment

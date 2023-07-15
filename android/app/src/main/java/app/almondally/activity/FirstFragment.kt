@@ -1,4 +1,4 @@
-package app.almondally
+package app.almondally.activity
 
 import android.content.Intent
 import android.media.MediaPlayer
@@ -7,17 +7,33 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.AlphaAnimation
-import android.view.animation.AnimationSet
 import android.view.animation.DecelerateInterpolator
-import androidx.navigation.fragment.findNavController
+import android.widget.Toast
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import app.almondally.R
 import app.almondally.databinding.FragmentFirstBinding
+import app.almondally.network.BaseURLs
+import app.almondally.network.ElevenLabsRequestBody
+import app.almondally.network.ElevenLabsService
+import app.almondally.network.RelevanceRequestBody
+import app.almondally.network.RelevanceRequestBodyParam
+import app.almondally.network.RelevanceService
 import com.google.android.material.snackbar.Snackbar
+import com.google.gson.Gson
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+
 
 /**
  * A simple [Fragment] subclass as the default destination in the navigation.
@@ -32,11 +48,14 @@ class FirstFragment : Fragment() {
 
     val TAG = "DEBUG"
 
-    private lateinit var speechRecognizer : SpeechRecognizer
-    private lateinit var speechRecognizerIntent : Intent
+    private lateinit var speechRecognizer: SpeechRecognizer
+    private lateinit var speechRecognizerIntent: Intent
     private lateinit var speechRecognitionListener: RecognitionListener
 
-    private lateinit var mediaPlayer : MediaPlayer
+    private lateinit var mediaPlayer: MediaPlayer
+
+    private lateinit var retrofitForRelevance: Retrofit
+    private lateinit var retrofitForElevenLabs: Retrofit
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -58,9 +77,18 @@ class FirstFragment : Fragment() {
 //        }
 
         speechRecognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-        speechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-        speechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, /*Locale.getDefault()*/"en-US")
-        speechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_ENABLE_FORMATTING, RecognizerIntent.FORMATTING_OPTIMIZE_QUALITY)
+        speechRecognizerIntent.putExtra(
+            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+        )
+        speechRecognizerIntent.putExtra(
+            RecognizerIntent.EXTRA_LANGUAGE, /*Locale.getDefault()*/
+            "en-US"
+        )
+        speechRecognizerIntent.putExtra(
+            RecognizerIntent.EXTRA_ENABLE_FORMATTING,
+            RecognizerIntent.FORMATTING_OPTIMIZE_QUALITY
+        )
         mediaPlayer = MediaPlayer.create(context, R.raw.letmethink)
 
         val fadeIn = AlphaAnimation(0f, 1f)
@@ -71,6 +99,30 @@ class FirstFragment : Fragment() {
         fadeOut.interpolator = AccelerateInterpolator() //and this
         fadeOut.startOffset = 1000
         fadeOut.duration = 1000
+
+        var mHttpLoggingInterceptor = HttpLoggingInterceptor()
+            .setLevel(HttpLoggingInterceptor.Level.BODY)
+
+        var mOkHttpClient = OkHttpClient
+            .Builder()
+            .addInterceptor(mHttpLoggingInterceptor)
+            .build()
+
+        retrofitForRelevance = Retrofit.Builder()
+            .addConverterFactory(GsonConverterFactory.create())
+            .client(mOkHttpClient)
+            .baseUrl(BaseURLs.RELEVANCE)
+            .build()
+        val relevanceService: RelevanceService =
+            retrofitForRelevance.create(RelevanceService::class.java)
+
+        retrofitForElevenLabs = Retrofit.Builder()
+            .addConverterFactory(GsonConverterFactory.create())
+            .client(mOkHttpClient)
+            .baseUrl(BaseURLs.ELEVEN_LABS)
+            .build()
+        val elevenLabsService: ElevenLabsService =
+            retrofitForElevenLabs.create(ElevenLabsService::class.java)
 
         speechRecognitionListener = object : RecognitionListener {
             override fun onResults(results: Bundle) {
@@ -85,7 +137,27 @@ class FirstFragment : Fragment() {
                         Log.d(TAG, match!!)
                     }
                     val bestMatch = voiceResults[0]
+
+                    var relevanceRequestBody = RelevanceRequestBody(RelevanceRequestBodyParam(bestMatch))
+                    Log.d(TAG, Gson().toJson(relevanceRequestBody))
+
+                    var elevenLabsRequestBody = ElevenLabsRequestBody(bestMatch)
+                    Log.d(TAG, Gson().toJson(elevenLabsRequestBody))
+
                     // TODO call relevance.ai then append answer to binding.answer and play audio
+                    CoroutineScope(Dispatchers.IO).launch {
+
+                        val response = relevanceService.getRelevanceResponse(relevanceRequestBody)
+                        if (response.isSuccessful) {
+                            CoroutineScope(Dispatchers.Main).launch {
+                                binding.answer.append(response.body()?.output?.answer ?: "empty")
+                            }
+
+                        } else {
+                            Log.e(TAG, response.errorBody().toString())
+                        }
+
+                    }
 
                     // then display recognized text
 //                    binding.question.visibility = View.INVISIBLE
@@ -114,7 +186,7 @@ class FirstFragment : Fragment() {
             }
 
             override fun onError(error: Int) {
-//                Log.d(TAG, "Error listening for speech: $error")
+//                Log.e(TAG, "Error listening for speech: $error")
             }
 
             override fun onBeginningOfSpeech() {
