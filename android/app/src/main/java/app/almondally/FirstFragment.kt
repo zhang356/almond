@@ -1,6 +1,7 @@
 package app.almondally
 
 import android.content.Intent
+import android.media.MediaPlayer
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -31,6 +32,8 @@ class FirstFragment : Fragment() {
     private lateinit var speechRecognizerIntent : Intent
     private lateinit var speechRecognitionListener: RecognitionListener
 
+    private lateinit var mediaPlayer : MediaPlayer
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -52,6 +55,7 @@ class FirstFragment : Fragment() {
         speechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
         speechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, /*Locale.getDefault()*/"en-US")
         speechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_ENABLE_FORMATTING, RecognizerIntent.FORMATTING_OPTIMIZE_QUALITY)
+        mediaPlayer = MediaPlayer.create(context, R.raw.letmethink)
 
         speechRecognitionListener = object : RecognitionListener {
             override fun onResults(results: Bundle) {
@@ -70,6 +74,10 @@ class FirstFragment : Fragment() {
 
                     // then display recognized text
                     binding.question.text = bestMatch
+
+                    // then play let-me-think placeholder, and display text
+                    mediaPlayer.start() // no need to call prepare(); create() does that for you
+                    binding.answer.text = "Hey Phillip, let me think. "
                 }
 
                 // then start listening again? Or switch to recording mode?

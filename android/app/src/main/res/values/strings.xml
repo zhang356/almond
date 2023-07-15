@@ -7,10 +7,6 @@
     <string name="start">Start</string>
     <string name="stop">Stop</string>
 
-    <string name="question">
-
-    </string>
-    <string name="answer">
-
-    </string>
+    <string name="question"></string>
+    <string name="answer"></string>
 </resources>
