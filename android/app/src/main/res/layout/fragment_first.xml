@@ -17,12 +17,13 @@
 
             <TextView
                 android:id="@+id/question"
+                style="@style/TextAppearance.MdcTypographyStyles.Body1"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_margin="16dp"
+                android:background="?attr/colorTertiaryContainer"
                 android:padding="10dp"
                 android:text="@string/question"
-                android:background="?attr/colorTertiaryContainer"
                 android:textAlignment="viewStart"
                 app:layout_constraintBottom_toTopOf="@id/answer"
                 app:layout_constraintStart_toStartOf="parent"
@@ -30,11 +31,12 @@
 
             <TextView
                 android:id="@+id/answer"
+                style="@style/TextAppearance.MdcTypographyStyles.Body1"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_margin="16dp"
-                android:padding="10dp"
                 android:background="?attr/colorTertiaryContainer"
+                android:padding="10dp"
                 android:text="@string/answer"
                 android:textAlignment="textEnd"
                 app:layout_constraintBottom_toBottomOf="parent"

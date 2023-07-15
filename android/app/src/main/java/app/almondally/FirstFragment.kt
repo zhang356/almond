@@ -11,6 +11,10 @@ import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.AlphaAnimation
+import android.view.animation.AnimationSet
+import android.view.animation.DecelerateInterpolator
 import androidx.navigation.fragment.findNavController
 import app.almondally.databinding.FragmentFirstBinding
 import com.google.android.material.snackbar.Snackbar
@@ -40,6 +44,8 @@ class FirstFragment : Fragment() {
     ): View? {
 
         _binding = FragmentFirstBinding.inflate(inflater, container, false)
+        binding.question.visibility = View.INVISIBLE
+        binding.answer.visibility = View.INVISIBLE
         return binding.root
 
     }
@@ -57,6 +63,15 @@ class FirstFragment : Fragment() {
         speechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_ENABLE_FORMATTING, RecognizerIntent.FORMATTING_OPTIMIZE_QUALITY)
         mediaPlayer = MediaPlayer.create(context, R.raw.letmethink)
 
+        val fadeIn = AlphaAnimation(0f, 1f)
+        fadeIn.interpolator = DecelerateInterpolator() //add this
+        fadeIn.duration = 1000
+
+        val fadeOut = AlphaAnimation(1f, 0f)
+        fadeOut.interpolator = AccelerateInterpolator() //and this
+        fadeOut.startOffset = 1000
+        fadeOut.duration = 1000
+
         speechRecognitionListener = object : RecognitionListener {
             override fun onResults(results: Bundle) {
                 val voiceResults =
@@ -70,14 +85,23 @@ class FirstFragment : Fragment() {
                         Log.d(TAG, match!!)
                     }
                     val bestMatch = voiceResults[0]
-                    // TODO call relevance.ai
+                    // TODO call relevance.ai then append answer to binding.answer and play audio
 
                     // then display recognized text
+//                    binding.question.visibility = View.INVISIBLE
+                    binding.question.startAnimation(fadeOut)
                     binding.question.text = bestMatch
+                    binding.question.visibility = View.VISIBLE
+                    binding.question.startAnimation(fadeIn)
 
                     // then play let-me-think placeholder, and display text
-                    mediaPlayer.start() // no need to call prepare(); create() does that for you
+//                    binding.answer.visibility = View.INVISIBLE
+                    binding.answer.startAnimation(fadeOut)
                     binding.answer.text = "Hey Phillip, let me think. "
+                    binding.answer.visibility = View.VISIBLE
+                    binding.answer.startAnimation(fadeIn)
+
+                    mediaPlayer.start() // no need to call prepare(); create() does that for you
                 }
 
                 // then start listening again? Or switch to recording mode?
