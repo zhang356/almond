@@ -3,7 +3,7 @@
     <string name="action_start_stop">Start</string>
     <!-- Strings used for fragments for navigation -->
     <string name="first_fragment_label">Almond</string>
-    <string name="second_fragment_label">Second Fragment</string>
+    <string name="second_fragment_label">Tell me more about yourself...</string>
     <string name="start">Start</string>
     <string name="stop">Stop</string>
 
