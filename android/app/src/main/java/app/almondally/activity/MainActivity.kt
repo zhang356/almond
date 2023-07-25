@@ -16,12 +16,29 @@ import androidx.navigation.ui.navigateUp
 import androidx.navigation.ui.setupActionBarWithNavController
 import app.almondally.R
 import app.almondally.databinding.ActivityMainBinding
-
+import com.microsoft.cognitiveservices.speech.SpeechConfig
+import com.microsoft.cognitiveservices.speech.SpeechRecognizer
+import com.microsoft.cognitiveservices.speech.audio.AudioConfig
+import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var appBarConfiguration: AppBarConfiguration
     private lateinit var binding: ActivityMainBinding
+
+    private var speechConfig: SpeechConfig? = null
+    private var microphoneStream: MicrophoneStream? = null
+
+    private val speechReco: SpeechRecognizer by lazy {
+        speechConfig = SpeechConfig.fromSubscription(speechSubscriptionKey, speechRegion)
+        destroyMicrophoneStream() // in case it was previously initialized
+        microphoneStream = MicrophoneStream()
+
+        SpeechRecognizer(
+            speechConfig,
+            AudioConfig.fromStreamInput(MicrophoneStream.create())
+        )
+    }
 
     val TAG = "DEBUG"
 
@@ -115,16 +132,48 @@ class MainActivity : AppCompatActivity() {
 
     private fun onStartStopButtonTapped(item: MenuItem) {
         if (item.title == resources.getString(R.string.start)) {
-            //TODO call Assembly to start streaming
-
-            //change text to stop
+            startReco()
             item.title = resources.getString(R.string.stop)
         } else if (item.title == resources.getString(R.string.stop)) {
-            //TODO stop recording
-
-            //change text to start
+            stopReco()
             item.title = resources.getString(R.string.start)
         }
+    }
+
+    private fun startReco() {
+        speechReco.recognized.addEventListener { sender, e ->
+            val finalResult = e.result.text
+            Log.i(activityTag, finalResult)
+//            stopReco()
+        }
+
+        val task = speechReco.startContinuousRecognitionAsync()
+        executorService.submit {
+            task.get()
+            Log.i(activityTag, "Continuous recognition finished. Stopping speechReco")
+        }
+    }
+
+    private fun stopReco() {
+        speechReco.stopContinuousRecognitionAsync()
+    }
+
+    private fun destroyMicrophoneStream() {
+        if (microphoneStream != null) {
+            microphoneStream?.close()
+            microphoneStream = null
+        }
+    }
+
+    companion object {
+        // Replace below with your own subscription key
+        private const val speechSubscriptionKey = "7404f9e42967403e8f63d646646c8195"
+        // Replace below with your own service region (e.g., "westus").
+        private const val speechRegion = "eastus"
+
+        private const val activityTag = "MainActivity"
+
+        private val executorService = Executors.newCachedThreadPool()
     }
 
 }
