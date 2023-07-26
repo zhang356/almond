@@ -1,9 +1,12 @@
 package app.almondally.activity
 
 import android.Manifest
-import android.R.attr.data
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
+import android.os.Build
 import android.os.Bundle
 import android.util.AttributeSet
 import android.util.Log
@@ -11,6 +14,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
@@ -38,7 +42,6 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.io.IOException
-import java.io.OutputStreamWriter
 import java.util.concurrent.Executors
 
 
@@ -157,6 +160,7 @@ class MainActivity : AppCompatActivity() {
 
     }
 
+    @RequiresApi(Build.VERSION_CODES.P)
     override fun onCreateView(name: String, context: Context, attrs: AttributeSet): View? {
         val elevenLabsRequestBody = ElevenLabsRequestBody("Hello, I'm Jack")
 
@@ -184,14 +188,43 @@ class MainActivity : AppCompatActivity() {
                     val audioResponseBody = response.body()?.bytes()
                     if (audioResponseBody != null) {
                         try {
-                            val outputStreamWriter = OutputStreamWriter(
-                                context.openFileOutput(
-                                    "sampleAudio",
-                                    MODE_PRIVATE
-                                )
-                            )
-                            outputStreamWriter.write(data)
-                            outputStreamWriter.close()
+                            val sampleRate = 44100
+                            val channelConfig = AudioFormat.CHANNEL_OUT_MONO
+                            val audioFormat = AudioFormat.ENCODING_MP3
+                            val audioAttributes = AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_MEDIA)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                                .build()
+                            val format = AudioFormat.Builder()
+                                .setSampleRate(sampleRate)
+                                .setEncoding(audioFormat)
+                                .setChannelMask(channelConfig)
+                                .build()
+                            // val minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+                            val audioTrack = AudioTrack.Builder()
+                                .setAudioAttributes(audioAttributes)
+                                .setAudioFormat(format)
+                                .setBufferSizeInBytes(audioResponseBody.size)
+                                .setTransferMode(AudioTrack.MODE_STREAM)
+                                .build()
+                            audioTrack.play()
+                            audioTrack.write(audioResponseBody, 0, audioResponseBody.size)
+                            var x = 0
+                            do { // Montior playback to find when done
+                                if (audioTrack != null) x = audioTrack.playbackHeadPosition else x =
+                                    audioResponseBody.size
+                            } while (x < audioResponseBody.size)
+                            audioTrack.release();
+                            audioTrack.
+
+//                            val dataOutputStream = DataOutputStream(
+//                                context.openFileOutput(
+//                                    "sampleAudio",
+//                            MODE_PRIVATE
+//                            )
+//                            )
+//                            dataOutputStream.write(audioResponseBody)
+//                            dataOutputStream.close()
                         } catch (e: IOException) {
                             Log.e("Exception", "File write failed: $e")
                         }
