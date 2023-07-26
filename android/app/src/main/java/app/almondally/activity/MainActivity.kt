@@ -53,6 +53,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var retrofitForRelevance: Retrofit
     private lateinit var retrofitForElevenLabs: Retrofit
 
+    enum class Mode {
+        LISTENING, QNA
+    }
+    private var mode: Mode = Mode.LISTENING
+
     private val speechReco: SpeechRecognizer by lazy {
         speechConfig = SpeechConfig.fromSubscription(speechSubscriptionKey, speechRegion)
         destroyMicrophoneStream() // in case it was previously initialized
@@ -145,6 +150,10 @@ class MainActivity : AppCompatActivity() {
                 onStartStopButtonTapped(item)
                 true
             }
+            R.id.action_switch_mode -> {
+                onSwitchModeButtonTapped(item)
+                true
+            }
 
             else -> super.onOptionsItemSelected(item)
         }
@@ -204,6 +213,16 @@ class MainActivity : AppCompatActivity() {
         return super.onCreateView(name, context, attrs)
     }
 
+    private fun onSwitchModeButtonTapped(item: MenuItem) {
+        if (item.title == resources.getString(R.string.listening)) {
+            mode = Mode.QNA
+            item.title = resources.getString(R.string.qna)
+        } else if (item.title == resources.getString(R.string.qna)) {
+            mode = Mode.LISTENING
+            item.title = resources.getString(R.string.listening)
+        }
+    }
+
     private fun onStartStopButtonTapped(item: MenuItem) {
         if (item.title == resources.getString(R.string.start)) {
             startReco()
@@ -218,10 +237,10 @@ class MainActivity : AppCompatActivity() {
         speechReco.recognized.addEventListener { sender, e ->
             val finalResult = e.result.text
             Log.i(activityTag, finalResult)
-            if (finalResult != "") {
+            Log.i(activityTag, "mode: "+ mode.name)
+            if (finalResult != "" && mode.name == Mode.QNA.name) {
                 askRelevance("", finalResult)
-            } else {
-                Log.i(activityTag, "avoid sending empty question")
+                Log.i(activityTag, "asked relevance")
             }
 //            stopReco()
         }

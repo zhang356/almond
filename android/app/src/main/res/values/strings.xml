@@ -1,11 +1,12 @@
 <resources>
     <string name="app_name">Almond</string>
-    <string name="action_start_stop">Start</string>
     <!-- Strings used for fragments for navigation -->
     <string name="first_fragment_label">Almond</string>
     <string name="second_fragment_label">Tell me more about yourself...</string>
     <string name="start">Start</string>
     <string name="stop">Stop</string>
+    <string name="listening">Listening Mode</string>
+    <string name="qna">Q&amp;A Mode</string>
 
     <string name="question"></string>
     <string name="answer"></string>
