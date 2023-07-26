@@ -1,10 +1,10 @@
 package app.almondally.network
 
 data class RelevanceRequestBodyParam(
-    var long_text_variable : String?
+    var long_text_variable : String?,
+    var text_variable: String?
 )
 data class RelevanceRequestBody(
-
     var params: RelevanceRequestBodyParam?,
     var project: String? = "6f770fda6633-4dee-a99c-f8e72bce8f69"
 )

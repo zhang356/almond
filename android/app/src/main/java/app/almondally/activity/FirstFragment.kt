@@ -134,7 +134,7 @@ class FirstFragment : Fragment() {
                     }
                     val bestMatch = voiceResults[0]
 
-                    var relevanceRequestBody = RelevanceRequestBody(RelevanceRequestBodyParam(bestMatch))
+                    var relevanceRequestBody = RelevanceRequestBody(RelevanceRequestBodyParam("", bestMatch))
                     Log.d(TAG, Gson().toJson(relevanceRequestBody))
 
                     var elevenLabsRequestBody = ElevenLabsRequestBody(bestMatch)

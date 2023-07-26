@@ -1,11 +1,15 @@
 package app.almondally.activity
 
 import android.Manifest
+import android.R.attr.data
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.AttributeSet
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -16,10 +20,27 @@ import androidx.navigation.ui.navigateUp
 import androidx.navigation.ui.setupActionBarWithNavController
 import app.almondally.R
 import app.almondally.databinding.ActivityMainBinding
+import app.almondally.network.BaseURLs
+import app.almondally.network.ElevenLabsRequestBody
+import app.almondally.network.ElevenLabsService
+import app.almondally.network.RelevanceRequestBody
+import app.almondally.network.RelevanceRequestBodyParam
+import app.almondally.network.RelevanceService
+import com.google.gson.Gson
 import com.microsoft.cognitiveservices.speech.SpeechConfig
 import com.microsoft.cognitiveservices.speech.SpeechRecognizer
 import com.microsoft.cognitiveservices.speech.audio.AudioConfig
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import java.io.IOException
+import java.io.OutputStreamWriter
 import java.util.concurrent.Executors
+
 
 class MainActivity : AppCompatActivity() {
 
@@ -28,6 +49,9 @@ class MainActivity : AppCompatActivity() {
 
     private var speechConfig: SpeechConfig? = null
     private var microphoneStream: MicrophoneStream? = null
+
+    private lateinit var retrofitForRelevance: Retrofit
+    private lateinit var retrofitForElevenLabs: Retrofit
 
     private val speechReco: SpeechRecognizer by lazy {
         speechConfig = SpeechConfig.fromSubscription(speechSubscriptionKey, speechRegion)
@@ -45,7 +69,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         super.onCreate(savedInstanceState)
-
 
         // Register the permissions callback, which handles the user's response to the
 // system permissions dialog. Save the return value, an instance of
@@ -102,6 +125,9 @@ class MainActivity : AppCompatActivity() {
         val navController = findNavController(R.id.nav_host_fragment_content_main)
         appBarConfiguration = AppBarConfiguration(navController.graph)
         setupActionBarWithNavController(navController, appBarConfiguration)
+
+
+
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -128,6 +154,54 @@ class MainActivity : AppCompatActivity() {
         val navController = findNavController(R.id.nav_host_fragment_content_main)
         return navController.navigateUp(appBarConfiguration)
                 || super.onSupportNavigateUp()
+
+    }
+
+    override fun onCreateView(name: String, context: Context, attrs: AttributeSet): View? {
+        val elevenLabsRequestBody = ElevenLabsRequestBody("Hello, I'm Jack")
+
+        val mHttpLoggingInterceptor = HttpLoggingInterceptor()
+            .setLevel(HttpLoggingInterceptor.Level.BODY)
+
+        val mOkHttpClient = OkHttpClient
+            .Builder()
+            .addInterceptor(mHttpLoggingInterceptor)
+            .build()
+
+        retrofitForElevenLabs = Retrofit.Builder()
+            .addConverterFactory(GsonConverterFactory.create())
+            .client(mOkHttpClient)
+            .baseUrl(BaseURLs.ELEVEN_LABS)
+            .build()
+
+        val elevenLabsService: ElevenLabsService =
+            retrofitForElevenLabs.create(ElevenLabsService::class.java)
+
+        CoroutineScope(Dispatchers.IO).launch {
+            val response = elevenLabsService.getElevenLabsResponse(elevenLabsRequestBody)
+            if (response.isSuccessful) {
+                CoroutineScope(Dispatchers.Main).launch {
+                    val audioResponseBody = response.body()?.bytes()
+                    if (audioResponseBody != null) {
+                        try {
+                            val outputStreamWriter = OutputStreamWriter(
+                                context.openFileOutput(
+                                    "sampleAudio",
+                                    MODE_PRIVATE
+                                )
+                            )
+                            outputStreamWriter.write(data)
+                            outputStreamWriter.close()
+                        } catch (e: IOException) {
+                            Log.e("Exception", "File write failed: $e")
+                        }
+                    }
+                }
+            } else {
+                Log.e(activityTag, response.errorBody().toString())
+            }
+        }
+        return super.onCreateView(name, context, attrs)
     }
 
     private fun onStartStopButtonTapped(item: MenuItem) {
@@ -144,6 +218,11 @@ class MainActivity : AppCompatActivity() {
         speechReco.recognized.addEventListener { sender, e ->
             val finalResult = e.result.text
             Log.i(activityTag, finalResult)
+            if (finalResult != "") {
+                askRelevance("", finalResult)
+            } else {
+                Log.i(activityTag, "avoid sending empty question")
+            }
 //            stopReco()
         }
 
@@ -165,14 +244,46 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun askRelevance(context: String, question: String) {
+        val mHttpLoggingInterceptor = HttpLoggingInterceptor()
+            .setLevel(HttpLoggingInterceptor.Level.BODY)
+
+        val mOkHttpClient = OkHttpClient
+            .Builder()
+            .addInterceptor(mHttpLoggingInterceptor)
+            .build()
+
+        retrofitForRelevance = Retrofit.Builder()
+            .addConverterFactory(GsonConverterFactory.create())
+            .client(mOkHttpClient)
+            .baseUrl(BaseURLs.RELEVANCE)
+            .build()
+        val relevanceService: RelevanceService =
+            retrofitForRelevance.create(RelevanceService::class.java)
+
+        val relevanceRequestBody = RelevanceRequestBody(RelevanceRequestBodyParam("", question))
+        Log.d(activityTag, Gson().toJson(relevanceRequestBody))
+
+        CoroutineScope(Dispatchers.IO).launch {
+            val response = relevanceService.getRelevanceResponse(relevanceRequestBody)
+            if (response.isSuccessful) {
+                CoroutineScope(Dispatchers.Main).launch {
+                    val answer = response.body()?.output?.answer
+                    Log.i(activityTag, answer ?: "empty")
+//                    val elevenLabsRequestBody = ElevenLabsRequestBody(answer)
+//                    Log.d(TAG, Gson().toJson(elevenLabsRequestBody))
+//                    binding.answer.append(response.body()?.output?.answer ?: "empty")
+                }
+            } else {
+                Log.e(activityTag, response.errorBody().toString())
+            }
+        }
+    }
+
     companion object {
-        // Replace below with your own subscription key
         private const val speechSubscriptionKey = "7404f9e42967403e8f63d646646c8195"
-        // Replace below with your own service region (e.g., "westus").
         private const val speechRegion = "eastus"
-
         private const val activityTag = "MainActivity"
-
         private val executorService = Executors.newCachedThreadPool()
     }
 
