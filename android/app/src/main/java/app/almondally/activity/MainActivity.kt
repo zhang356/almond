@@ -4,6 +4,7 @@ import android.Manifest
 import android.R.attr.data
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.MediaPlayer
 import android.os.Bundle
 import android.util.AttributeSet
 import android.util.Log
@@ -37,6 +38,8 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.io.OutputStreamWriter
 import java.util.concurrent.Executors
@@ -166,53 +169,6 @@ class MainActivity : AppCompatActivity() {
 
     }
 
-    override fun onCreateView(name: String, context: Context, attrs: AttributeSet): View? {
-        val elevenLabsRequestBody = ElevenLabsRequestBody("Hello, I'm Jack")
-
-        val mHttpLoggingInterceptor = HttpLoggingInterceptor()
-            .setLevel(HttpLoggingInterceptor.Level.BODY)
-
-        val mOkHttpClient = OkHttpClient
-            .Builder()
-            .addInterceptor(mHttpLoggingInterceptor)
-            .build()
-
-        retrofitForElevenLabs = Retrofit.Builder()
-            .addConverterFactory(GsonConverterFactory.create())
-            .client(mOkHttpClient)
-            .baseUrl(BaseURLs.ELEVEN_LABS)
-            .build()
-
-        val elevenLabsService: ElevenLabsService =
-            retrofitForElevenLabs.create(ElevenLabsService::class.java)
-
-        CoroutineScope(Dispatchers.IO).launch {
-            val response = elevenLabsService.getElevenLabsResponse(elevenLabsRequestBody)
-            if (response.isSuccessful) {
-                CoroutineScope(Dispatchers.Main).launch {
-                    val audioResponseBody = response.body()?.bytes()
-                    if (audioResponseBody != null) {
-                        try {
-                            val outputStreamWriter = OutputStreamWriter(
-                                context.openFileOutput(
-                                    "sampleAudio",
-                                    MODE_PRIVATE
-                                )
-                            )
-                            outputStreamWriter.write(data)
-                            outputStreamWriter.close()
-                        } catch (e: IOException) {
-                            Log.e("Exception", "File write failed: $e")
-                        }
-                    }
-                }
-            } else {
-                Log.e(activityTag, response.errorBody().toString())
-            }
-        }
-        return super.onCreateView(name, context, attrs)
-    }
-
     private fun onSwitchModeButtonTapped(item: MenuItem) {
         if (item.title == resources.getString(R.string.listening)) {
             mode = Mode.QNA
@@ -237,12 +193,11 @@ class MainActivity : AppCompatActivity() {
         speechReco.recognized.addEventListener { sender, e ->
             val finalResult = e.result.text
             Log.i(activityTag, finalResult)
-            Log.i(activityTag, "mode: "+ mode.name)
+            Log.i(activityTag, "mode: $mode")
             if (finalResult != "" && mode.name == Mode.QNA.name) {
+                stopReco()
                 askRelevance("", finalResult)
-                Log.i(activityTag, "asked relevance")
             }
-//            stopReco()
         }
 
         val task = speechReco.startContinuousRecognitionAsync()
@@ -264,6 +219,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun askRelevance(context: String, question: String) {
+        mode = Mode.LISTENING
+        Log.i(activityTag, "About to execute Ask Relevance: "+ mode.name)
         val mHttpLoggingInterceptor = HttpLoggingInterceptor()
             .setLevel(HttpLoggingInterceptor.Level.BODY)
 
@@ -283,16 +240,55 @@ class MainActivity : AppCompatActivity() {
         val relevanceRequestBody = RelevanceRequestBody(RelevanceRequestBodyParam("", question))
         Log.d(activityTag, Gson().toJson(relevanceRequestBody))
 
+        retrofitForElevenLabs = Retrofit.Builder()
+            .addConverterFactory(GsonConverterFactory.create())
+            .client(mOkHttpClient)
+            .baseUrl(BaseURLs.ELEVEN_LABS)
+            .build()
+
+        val elevenLabsService: ElevenLabsService =
+            retrofitForElevenLabs.create(ElevenLabsService::class.java)
+
         CoroutineScope(Dispatchers.IO).launch {
             val response = relevanceService.getRelevanceResponse(relevanceRequestBody)
             if (response.isSuccessful) {
-                CoroutineScope(Dispatchers.Main).launch {
-                    val answer = response.body()?.output?.answer
-                    Log.i(activityTag, answer ?: "empty")
+                val answer = response.body()?.output?.answer
+                Log.i(activityTag, answer ?: "empty")
+                val elevenLabsRequestBody = ElevenLabsRequestBody(answer)
+                Log.i(activityTag, "prepare to convert text to speech: $mode")
+                val audioResponse = elevenLabsService.getElevenLabsResponse(elevenLabsRequestBody)
+                if (audioResponse.isSuccessful) {
+                    Log.i(activityTag, "prepare to respond with audio: $mode")
+                    val audioResponseBody = audioResponse.body()?.bytes()
+                    if (audioResponseBody != null) {
+                        try {
+                            val tempFile = File.createTempFile("audio", "temp", cacheDir)
+                            tempFile.deleteOnExit()
+                            val fos = FileOutputStream(tempFile)
+                            fos.write(audioResponseBody)
+                            fos.close()
+
+                            val mediaPlayer = MediaPlayer().apply {
+                                setDataSource(tempFile.absolutePath)
+                                prepare()
+                                start()
+                                setOnCompletionListener {
+                                    Log.i(activityTag, "playback finished: $mode")
+                                    mode = Mode.QNA
+                                    startReco()
+                                    Log.i(activityTag, "convert mode to Q&A: $mode")
+                                }
+                            }
+                        } catch (e: IOException) {
+                            Log.e("Exception", "File write failed: $e")
+                        }
+                    }
+                } else {
+                    Log.e(activityTag, audioResponse.errorBody().toString())
+                }
 //                    val elevenLabsRequestBody = ElevenLabsRequestBody(answer)
 //                    Log.d(TAG, Gson().toJson(elevenLabsRequestBody))
 //                    binding.answer.append(response.body()?.output?.answer ?: "empty")
-                }
             } else {
                 Log.e(activityTag, response.errorBody().toString())
             }
