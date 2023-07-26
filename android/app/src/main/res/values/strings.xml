@@ -10,4 +10,17 @@
 
     <string name="question"></string>
     <string name="answer"></string>
+
+    <string-array name="caregiver_role_array">
+        <item>Son</item>
+        <item>Daughter</item>
+        <item>Husband</item>
+        <item>Wife</item>
+        <item>Brother</item>
+        <item>Sister</item>
+        <item>Cousin</item>
+        <item>Dad</item>
+        <item>Mom</item>
+        <item>Friend</item>
+    </string-array>
 </resources>

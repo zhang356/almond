@@ -1,20 +1,25 @@
 package app.almondally.activity
 
 import android.Manifest
-import android.R.attr.data
 import android.content.Context
 import android.content.pm.PackageManager
 import android.media.MediaPlayer
 import android.os.Bundle
-import android.util.AttributeSet
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
-import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import androidx.datastore.core.DataStore
+import androidx.datastore.dataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.findNavController
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.navigateUp
@@ -33,7 +38,12 @@ import com.microsoft.cognitiveservices.speech.SpeechRecognizer
 import com.microsoft.cognitiveservices.speech.audio.AudioConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -41,7 +51,6 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import java.io.OutputStreamWriter
 import java.util.concurrent.Executors
 
 
@@ -55,6 +64,13 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var retrofitForRelevance: Retrofit
     private lateinit var retrofitForElevenLabs: Retrofit
+
+    private val ONBOARDING_DATASTORE_KEY = "onboarding_info"
+    val ONBOARDING_DATASTORE_PATIENT_NAME_KEY = "patient_name"
+    val ONBOARDING_DATASTORE_CAREGIVER_NAME_KEY = "caregiver_name"
+    val ONBOARDING_DATASTORE_CAREGIVER_ROLE_KEY = "caregiver_role"
+
+    val Context.onboardingDataStore: DataStore<Preferences> by preferencesDataStore(name = ONBOARDING_DATASTORE_KEY)
 
     enum class Mode {
         LISTENING, QNA
@@ -73,6 +89,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     val TAG = "DEBUG"
+
+    fun getOnboardingDataStore() = onboardingDataStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -134,8 +152,10 @@ class MainActivity : AppCompatActivity() {
         appBarConfiguration = AppBarConfiguration(navController.graph)
         setupActionBarWithNavController(navController, appBarConfiguration)
 
-
-
+        lifecycleScope.launch {
+            onboardingDataStore.data.first()
+            // You should also handle IOExceptions here.
+        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -237,9 +257,6 @@ class MainActivity : AppCompatActivity() {
         val relevanceService: RelevanceService =
             retrofitForRelevance.create(RelevanceService::class.java)
 
-        val relevanceRequestBody = RelevanceRequestBody(RelevanceRequestBodyParam("", question))
-        Log.d(activityTag, Gson().toJson(relevanceRequestBody))
-
         retrofitForElevenLabs = Retrofit.Builder()
             .addConverterFactory(GsonConverterFactory.create())
             .client(mOkHttpClient)
@@ -250,6 +267,10 @@ class MainActivity : AppCompatActivity() {
             retrofitForElevenLabs.create(ElevenLabsService::class.java)
 
         CoroutineScope(Dispatchers.IO).launch {
+            val onboardingData = runBlocking { onboardingDataStore.data.first() }
+            var relevanceRequestBody = RelevanceRequestBody(RelevanceRequestBodyParam("", question, onboardingData[stringPreferencesKey(ONBOARDING_DATASTORE_PATIENT_NAME_KEY)]?: "", onboardingData[stringPreferencesKey(ONBOARDING_DATASTORE_CAREGIVER_NAME_KEY)]?: "", onboardingData[stringPreferencesKey(ONBOARDING_DATASTORE_CAREGIVER_ROLE_KEY)]?: ""))
+            Log.i(activityTag, relevanceRequestBody.toString())
+
             val response = relevanceService.getRelevanceResponse(relevanceRequestBody)
             if (response.isSuccessful) {
                 val answer = response.body()?.output?.answer

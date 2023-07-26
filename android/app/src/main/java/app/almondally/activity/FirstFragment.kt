@@ -134,26 +134,26 @@ class FirstFragment : Fragment() {
                     }
                     val bestMatch = voiceResults[0]
 
-                    var relevanceRequestBody = RelevanceRequestBody(RelevanceRequestBodyParam("", bestMatch))
-                    Log.d(TAG, Gson().toJson(relevanceRequestBody))
-
-                    var elevenLabsRequestBody = ElevenLabsRequestBody(bestMatch)
-                    Log.d(TAG, Gson().toJson(elevenLabsRequestBody))
+//                    var relevanceRequestBody = RelevanceRequestBody(RelevanceRequestBodyParam("", bestMatch))
+//                    Log.d(TAG, Gson().toJson(relevanceRequestBody))
+//
+//                    var elevenLabsRequestBody = ElevenLabsRequestBody(bestMatch)
+//                    Log.d(TAG, Gson().toJson(elevenLabsRequestBody))
 
                     // TODO call relevance.ai then append answer to binding.answer and play audio
-                    CoroutineScope(Dispatchers.IO).launch {
-
-                        val response = relevanceService.getRelevanceResponse(relevanceRequestBody)
-                        if (response.isSuccessful) {
-                            CoroutineScope(Dispatchers.Main).launch {
-                                binding.answer.append(response.body()?.output?.answer ?: "empty")
-                            }
-
-                        } else {
-                            Log.e(TAG, response.errorBody().toString())
-                        }
-
-                    }
+//                    CoroutineScope(Dispatchers.IO).launch {
+//
+//                        val response = relevanceService.getRelevanceResponse(relevanceRequestBody)
+//                        if (response.isSuccessful) {
+//                            CoroutineScope(Dispatchers.Main).launch {
+//                                binding.answer.append(response.body()?.output?.answer ?: "empty")
+//                            }
+//
+//                        } else {
+//                            Log.e(TAG, response.errorBody().toString())
+//                        }
+//
+//                    }
 
                     // then display recognized text
 //                    binding.question.visibility = View.INVISIBLE
