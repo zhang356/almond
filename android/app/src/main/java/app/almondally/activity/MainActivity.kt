@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.media.MediaPlayer
 import android.os.Build
 import android.os.Bundle
 import android.util.AttributeSet
@@ -41,6 +42,8 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.util.concurrent.Executors
 
@@ -129,7 +132,53 @@ class MainActivity : AppCompatActivity() {
         appBarConfiguration = AppBarConfiguration(navController.graph)
         setupActionBarWithNavController(navController, appBarConfiguration)
 
+        val elevenLabsRequestBody = ElevenLabsRequestBody("Hello, I'm Jack")
 
+        val mHttpLoggingInterceptor = HttpLoggingInterceptor()
+            .setLevel(HttpLoggingInterceptor.Level.BODY)
+
+        val mOkHttpClient = OkHttpClient
+            .Builder()
+            .addInterceptor(mHttpLoggingInterceptor)
+            .build()
+
+        retrofitForElevenLabs = Retrofit.Builder()
+            .addConverterFactory(GsonConverterFactory.create())
+            .client(mOkHttpClient)
+            .baseUrl(BaseURLs.ELEVEN_LABS)
+            .build()
+
+        val elevenLabsService: ElevenLabsService =
+            retrofitForElevenLabs.create(ElevenLabsService::class.java)
+
+        CoroutineScope(Dispatchers.IO).launch {
+            val response = elevenLabsService.getElevenLabsResponse(elevenLabsRequestBody)
+            if (response.isSuccessful) {
+                val audioResponseBody = response.body()?.bytes()
+                if (audioResponseBody != null) {
+                    try {
+                        val tempFile = File.createTempFile("audio", "temp", cacheDir)
+                        tempFile.deleteOnExit()
+                        val fos = FileOutputStream(tempFile)
+                        fos.write(audioResponseBody)
+                        fos.close()
+
+                        val mediaPlayer = MediaPlayer().apply {
+                            setDataSource(tempFile.absolutePath)
+                            prepare()
+                            start()
+                            setOnCompletionListener {
+                                Log.i(activityTag, "playback finished")
+                            }
+                        }
+                    } catch (e: IOException) {
+                        Log.e("Exception", "File write failed: $e")
+                    }
+                }
+            } else {
+                Log.e(activityTag, response.errorBody().toString())
+            }
+        }
 
     }
 
@@ -158,83 +207,6 @@ class MainActivity : AppCompatActivity() {
         return navController.navigateUp(appBarConfiguration)
                 || super.onSupportNavigateUp()
 
-    }
-
-    @RequiresApi(Build.VERSION_CODES.P)
-    override fun onCreateView(name: String, context: Context, attrs: AttributeSet): View? {
-        val elevenLabsRequestBody = ElevenLabsRequestBody("Hello, I'm Jack")
-
-        val mHttpLoggingInterceptor = HttpLoggingInterceptor()
-            .setLevel(HttpLoggingInterceptor.Level.BODY)
-
-        val mOkHttpClient = OkHttpClient
-            .Builder()
-            .addInterceptor(mHttpLoggingInterceptor)
-            .build()
-
-        retrofitForElevenLabs = Retrofit.Builder()
-            .addConverterFactory(GsonConverterFactory.create())
-            .client(mOkHttpClient)
-            .baseUrl(BaseURLs.ELEVEN_LABS)
-            .build()
-
-        val elevenLabsService: ElevenLabsService =
-            retrofitForElevenLabs.create(ElevenLabsService::class.java)
-
-        CoroutineScope(Dispatchers.IO).launch {
-            val response = elevenLabsService.getElevenLabsResponse(elevenLabsRequestBody)
-            if (response.isSuccessful) {
-                CoroutineScope(Dispatchers.Main).launch {
-                    val audioResponseBody = response.body()?.bytes()
-                    if (audioResponseBody != null) {
-                        try {
-                            val sampleRate = 44100
-                            val channelConfig = AudioFormat.CHANNEL_OUT_MONO
-                            val audioFormat = AudioFormat.ENCODING_MP3
-                            val audioAttributes = AudioAttributes.Builder()
-                                .setUsage(AudioAttributes.USAGE_MEDIA)
-                                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                                .build()
-                            val format = AudioFormat.Builder()
-                                .setSampleRate(sampleRate)
-                                .setEncoding(audioFormat)
-                                .setChannelMask(channelConfig)
-                                .build()
-                            // val minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormat)
-                            val audioTrack = AudioTrack.Builder()
-                                .setAudioAttributes(audioAttributes)
-                                .setAudioFormat(format)
-                                .setBufferSizeInBytes(audioResponseBody.size)
-                                .setTransferMode(AudioTrack.MODE_STREAM)
-                                .build()
-                            audioTrack.play()
-                            audioTrack.write(audioResponseBody, 0, audioResponseBody.size)
-                            var x = 0
-                            do { // Montior playback to find when done
-                                if (audioTrack != null) x = audioTrack.playbackHeadPosition else x =
-                                    audioResponseBody.size
-                            } while (x < audioResponseBody.size)
-                            audioTrack.release();
-                            audioTrack.
-
-//                            val dataOutputStream = DataOutputStream(
-//                                context.openFileOutput(
-//                                    "sampleAudio",
-//                            MODE_PRIVATE
-//                            )
-//                            )
-//                            dataOutputStream.write(audioResponseBody)
-//                            dataOutputStream.close()
-                        } catch (e: IOException) {
-                            Log.e("Exception", "File write failed: $e")
-                        }
-                    }
-                }
-            } else {
-                Log.e(activityTag, response.errorBody().toString())
-            }
-        }
-        return super.onCreateView(name, context, attrs)
     }
 
     private fun onStartStopButtonTapped(item: MenuItem) {
