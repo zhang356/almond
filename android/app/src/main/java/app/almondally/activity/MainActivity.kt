@@ -85,6 +85,17 @@ class MainActivity : AppCompatActivity() {
     }
     private var mode: Mode = Mode.LISTENING
 
+
+    val mHttpLoggingInterceptor = HttpLoggingInterceptor()
+        .setLevel(HttpLoggingInterceptor.Level.BODY)
+
+    val mOkHttpClient = OkHttpClient
+        .Builder()
+        .addInterceptor(mHttpLoggingInterceptor)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
+
     private val handler = Handler(Looper.getMainLooper())
     private val runnableCode: Runnable = object : Runnable {
         override fun run() {
@@ -241,19 +252,17 @@ class MainActivity : AppCompatActivity() {
                 if (mode.name == Mode.QNA.name) {
                     stopReco()
                     askRelevance(shortTermMemory, finalResult)
-//                    val latencyPlayer = MediaPlayer.create(this, getLatencySource())
-//                    latencyPlayer.setOnCompletionListener {
-//                        it.reset()
-//                        it.release()
-//                    }
-//                    latencyPlayer.start()
-//
-//                    val latencyPlaybackRunnable: Runnable = object : Runnable {
-//                        override fun run() {
-//                            latencyPlayer.start()
-//                        }
-//                    }
-//                    handler.postDelayed(latencyPlaybackRunnable, TimeUnit.SECONDS.toMillis(1))
+                    val latencyPlayer = MediaPlayer.create(this, getLatencySource())
+                    latencyPlayer.setOnCompletionListener {
+                        it.reset()
+                        it.release()
+                    }
+                    val latencyPlaybackRunnable: Runnable = object : Runnable {
+                        override fun run() {
+                            latencyPlayer.start()
+                        }
+                    }
+                    handler.postDelayed(latencyPlaybackRunnable, TimeUnit.SECONDS.toMillis(1))
                 }
             }
         }
@@ -286,14 +295,6 @@ class MainActivity : AppCompatActivity() {
     private fun storeRelevance(key: String, conversation: String) {
         Log.i(activityTag, "About to execute Store Relevance: "+ mode.name)
 
-        val mHttpLoggingInterceptor = HttpLoggingInterceptor()
-            .setLevel(HttpLoggingInterceptor.Level.BODY)
-
-        val mOkHttpClient = OkHttpClient
-            .Builder()
-            .addInterceptor(mHttpLoggingInterceptor)
-            .build()
-
         retrofitForRelevanceStore = Retrofit.Builder()
             .addConverterFactory(GsonConverterFactory.create())
             .client(mOkHttpClient)
@@ -320,13 +321,6 @@ class MainActivity : AppCompatActivity() {
     private fun askRelevance(shortTermMemoryRecentConversation: String, question: String) {
         mode = Mode.LISTENING
         Log.i(activityTag, "About to execute Ask Relevance: "+ mode.name)
-        val mHttpLoggingInterceptor = HttpLoggingInterceptor()
-            .setLevel(HttpLoggingInterceptor.Level.BODY)
-
-        val mOkHttpClient = OkHttpClient
-            .Builder()
-            .addInterceptor(mHttpLoggingInterceptor)
-            .build()
 
         retrofitForRelevanceQuery = Retrofit.Builder()
             .addConverterFactory(GsonConverterFactory.create())
@@ -362,7 +356,7 @@ class MainActivity : AppCompatActivity() {
                 if (answer == null) {
                     answer = "looks like my memory is empty on this, I can't answer you this question"
                 }
-                Log.i(activityTag, answer)
+                Log.i(activityTag, "Relevance respond with $answer")
                 val elevenLabsRequestBody = ElevenLabsRequestBody(answer)
                 storeConversation("Almond", answer)
                 Log.i(activityTag, "prepare to convert text to speech: $mode")
@@ -378,7 +372,7 @@ class MainActivity : AppCompatActivity() {
                             fos.write(audioResponseBody)
                             fos.close()
 
-                            val mediaPlayer = MediaPlayer().apply {
+                            MediaPlayer().apply {
                                 setDataSource(tempFile.absolutePath)
                                 prepare()
                                 start()
