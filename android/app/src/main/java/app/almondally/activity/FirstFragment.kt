@@ -1,6 +1,7 @@
 package app.almondally.activity
 
 import android.content.Intent
+import android.content.Context
 import android.media.MediaPlayer
 import android.os.Bundle
 import android.speech.RecognitionListener
@@ -52,16 +53,15 @@ class FirstFragment : Fragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-
         _binding = FragmentFirstBinding.inflate(inflater, container, false)
         binding.question.visibility = View.INVISIBLE
         binding.answer.visibility = View.INVISIBLE
         return binding.root
-
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        val context: Context = requireContext()
 
         speechRecognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
         speechRecognizerIntent.putExtra(
@@ -76,7 +76,15 @@ class FirstFragment : Fragment() {
             RecognizerIntent.EXTRA_ENABLE_FORMATTING,
             RecognizerIntent.FORMATTING_OPTIMIZE_QUALITY
         )
-        mediaPlayer = MediaPlayer.create(context, R.raw.letmethink)
+
+        val mediaPlayer = MediaPlayer.create(context, R.raw.letmethink)
+        mediaPlayer.setOnCompletionListener {
+            // (activity as MainActivity).startReco() // this will automatically start listening
+            it.reset()
+            it.release()
+        }
+        // (activity as MainActivity).stopReco()
+        mediaPlayer.start()
 
         val fadeIn = AlphaAnimation(0f, 1f)
         fadeIn.interpolator = DecelerateInterpolator() //add this

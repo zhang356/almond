@@ -207,6 +207,14 @@ class MainActivity : AppCompatActivity() {
         if (item.title == resources.getString(R.string.listening)) {
             mode = Mode.QNA
             item.title = resources.getString(R.string.qna)
+            val mediaPlayer = MediaPlayer.create(this, R.raw.letmethink)
+            mediaPlayer.setOnCompletionListener {
+                startReco()
+                it.reset()
+                it.release()
+            }
+            stopReco()
+            mediaPlayer.start()
         } else if (item.title == resources.getString(R.string.qna)) {
             mode = Mode.LISTENING
             item.title = resources.getString(R.string.listening)
@@ -236,7 +244,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-    private fun startReco() {
+    fun startReco() {
         val task = speechReco.startContinuousRecognitionAsync()
         executorService.submit {
             task.get()
@@ -244,7 +252,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun stopReco() {
+    fun stopReco() {
         Log.i(activityTag, "stopReco()")
         speechReco.stopContinuousRecognitionAsync()
     }
@@ -360,6 +368,8 @@ class MainActivity : AppCompatActivity() {
                                     mode = Mode.QNA
                                     startReco()
                                     Log.i(activityTag, "convert mode to Q&A: $mode")
+                                    it.reset()
+                                    it.release()
                                 }
                             }
                         } catch (e: IOException) {
