@@ -17,6 +17,7 @@ import androidx.core.view.WindowCompat
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.lifecycleScope
@@ -32,11 +33,15 @@ import app.almondally.network.ElevenLabsService
 import app.almondally.network.RelevanceQueryRequestBody
 import app.almondally.network.RelevanceQueryRequestBodyParam
 import app.almondally.network.RelevanceQueryService
+import app.almondally.network.RelevanceStoreRequestBody
+import app.almondally.network.RelevanceStoreRequestBodyParam
+import app.almondally.network.RelevanceStoreService
 import com.microsoft.cognitiveservices.speech.SpeechConfig
 import com.microsoft.cognitiveservices.speech.SpeechRecognizer
 import com.microsoft.cognitiveservices.speech.audio.AudioConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -62,6 +67,7 @@ class MainActivity : AppCompatActivity() {
     private var microphoneStream: MicrophoneStream? = null
 
     private lateinit var retrofitForRelevanceQuery: Retrofit
+    private lateinit var retrofitForRelevanceStore: Retrofit
     private lateinit var retrofitForElevenLabs: Retrofit
 
     private val ONBOARDING_DATASTORE_KEY = "onboarding_info"
@@ -71,6 +77,7 @@ class MainActivity : AppCompatActivity() {
 
     val Context.onboardingDataStore: DataStore<Preferences> by preferencesDataStore(name = ONBOARDING_DATASTORE_KEY)
     val Context.conversationStore: DataStore<Preferences> by preferencesDataStore(name = "conversation")
+    var shortTermMemory: String = ""
 
     enum class Mode {
         LISTENING, QNA
@@ -162,6 +169,7 @@ class MainActivity : AppCompatActivity() {
             // You should also handle IOExceptions here.
         }
         handler.post(runnableCode)
+        initReco();
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -214,8 +222,7 @@ class MainActivity : AppCompatActivity() {
             item.title = resources.getString(R.string.start)
         }
     }
-
-    private fun startReco() {
+    private fun initReco() {
         speechReco.recognized.addEventListener { sender, e ->
             val finalResult = e.result.text
             Log.i(activityTag, finalResult)
@@ -223,12 +230,13 @@ class MainActivity : AppCompatActivity() {
             if (finalResult != "") {
                 storeConversation("Human", finalResult)
                 if (mode.name == Mode.QNA.name) {
-                    askRelevance("", finalResult)
+                    askRelevance(shortTermMemory, finalResult)
                     stopReco()
                 }
             }
         }
-
+    }
+    private fun startReco() {
         val task = speechReco.startContinuousRecognitionAsync()
         executorService.submit {
             task.get()
@@ -248,7 +256,41 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun askRelevance(context: String, question: String) {
+    private fun storeRelevance(key: String, conversation: String) {
+        Log.i(activityTag, "About to execute Store Relevance: "+ mode.name)
+
+        val mHttpLoggingInterceptor = HttpLoggingInterceptor()
+            .setLevel(HttpLoggingInterceptor.Level.BODY)
+
+        val mOkHttpClient = OkHttpClient
+            .Builder()
+            .addInterceptor(mHttpLoggingInterceptor)
+            .build()
+
+        retrofitForRelevanceStore = Retrofit.Builder()
+            .addConverterFactory(GsonConverterFactory.create())
+            .client(mOkHttpClient)
+            .baseUrl(BaseURLs.RELEVANCE_STORE)
+            .build()
+        val relevanceStoreService: RelevanceStoreService =
+            retrofitForRelevanceStore.create(RelevanceStoreService::class.java)
+
+        CoroutineScope(Dispatchers.IO).launch {
+            Log.i(activityTag, "store relevance call thread: ${Thread.currentThread().name}")
+            val relevanceStoreRequestBody =
+                RelevanceStoreRequestBody(RelevanceStoreRequestBodyParam(conversation, key))
+            Log.i(activityTag, relevanceStoreRequestBody.toString())
+            val response =
+                relevanceStoreService.getRelevanceStoreResponse(relevanceStoreRequestBody)
+            if (response.isSuccessful) {
+                Log.i(activityTag, response.body()?.output?.inserted ?: "null response")
+            } else {
+                Log.e(activityTag, response.errorBody().toString())
+            }
+        }
+    }
+
+    private fun askRelevance(shortTermMemoryRecentConversation: String, question: String) {
         mode = Mode.LISTENING
         Log.i(activityTag, "About to execute Ask Relevance: "+ mode.name)
         val mHttpLoggingInterceptor = HttpLoggingInterceptor()
@@ -277,9 +319,10 @@ class MainActivity : AppCompatActivity() {
             retrofitForElevenLabs.create(ElevenLabsService::class.java)
 
         CoroutineScope(Dispatchers.IO).launch {
+            Log.i(activityTag, "thread call askRelevance: ${Thread.currentThread().name}")
             val onboardingData =  onboardingDataStore.data.first()
-            var relevanceQueryRequestBody = RelevanceQueryRequestBody(RelevanceQueryRequestBodyParam(
-                "",
+            val relevanceQueryRequestBody = RelevanceQueryRequestBody(RelevanceQueryRequestBodyParam(
+                shortTermMemoryRecentConversation ,
                 question,
                 onboardingData[stringPreferencesKey(ONBOARDING_DATASTORE_PATIENT_NAME_KEY)]?: "",
                 onboardingData[stringPreferencesKey(ONBOARDING_DATASTORE_CAREGIVER_NAME_KEY)]?: "",
@@ -337,56 +380,124 @@ class MainActivity : AppCompatActivity() {
 
     private fun storeConversation(speaker: String, sentence: String) {
         CoroutineScope(Dispatchers.IO).launch {
+            Log.i(activityTag, "thread storeConversation local db: ${Thread.currentThread().name}")
             getConverstaionDataStore().edit { conversation ->
-                conversation[stringPreferencesKey((System.currentTimeMillis()/1000).toString())] = "$speaker said \"$sentence\""
+                conversation[stringPreferencesKey((System.currentTimeMillis()).toString())] = "$speaker said \"$sentence\""
             }
         }
     }
 
-    private fun uploadToLongTermMemory() {
-        val CHUNK_TIME_DIFF = 15
+    // this function should be updated to clear database in the future
+    fun updateKey() {
         CoroutineScope(Dispatchers.IO).launch {
+            val allEntries: Map<String, Any> = conversationStore.data
+                .catch { e ->
+                    if (e is IOException) {
+                        emit(emptyPreferences())
+                    } else {
+                        throw e
+                    }
+                }
+                .map { preferences ->
+                    preferences.asMap().mapKeys { it.key.name }
+                }
+                .first()
+
+            conversationStore.edit { preferences ->
+                allEntries.forEach { (key, value) ->
+                    // Create the old and new preference keys
+                    val oldKey = stringPreferencesKey(key)
+                    val newKey = stringPreferencesKey((key.toLong() * 1000).toString())
+
+                    // Remove the old key
+                    preferences.remove(oldKey)
+
+                    // Add the value under the new key
+                    preferences[newKey] = value.toString()
+                }
+            }
+
+            val updatedEntries = conversationStore.data
+                .catch { e ->
+                    if (e is IOException) {
+                        emit(emptyPreferences())
+                    } else {
+                        throw e
+                    }
+                }
+                .map { preferences ->
+                    preferences.asMap().mapKeys { it.key.name }
+                }
+                .first()
+            uploadToLongTermMemory()
+        }
+    }
+
+    private fun uploadToLongTermMemory() {
+        val chunkDiff = 60 * 1000
+        val shortTermMemoryPeriod = 300 * 1000
+
+        CoroutineScope(Dispatchers.IO).launch {
+            Log.i(activityTag, "thread to update longTermMemory: ${Thread.currentThread().name}")
             Log.i(activityTag, "start printing conversation datastore")
+            var deleteTimestamp = System.currentTimeMillis()
             val allEntries: Map<Long, String> = conversationStore.data
                 .map { preferences ->
                     preferences.asMap().mapKeys { it.key.name.toLong() }.mapValues { it.value.toString() }
                 }
                 .first()
-//                .filterKeys { key ->
-//                    // Filter out entries that are less than 15 seconds earlier than the current timestamp
-//                    val currentTime = System.currentTimeMillis() / 1000
-//                    currentTime - key >= CHUNK_TIME_DIFF
-//                }
             val sortedMap: SortedMap<Long, String> = TreeMap(allEntries)
 
             // Initialize accumulator and previous key
             var accumulator = ""
             var previousKey: Long? = null
-            val processedEntries = TreeMap<Long, String>()
+            var startTimestamp: Long? = null
 
-            sortedMap.forEach { (key, value) ->
-                if (previousKey != null && key - previousKey!! < CHUNK_TIME_DIFF) {
+            val groupedEntries = TreeMap<Long, Pair<Long, String>>() // Begin timestamp to end timestamp and value
+
+            // Iterate over entries in sorted order
+            for ((key, value) in sortedMap) {
+                if (previousKey != null && key - previousKey < chunkDiff) {
                     // If the current key is within 15 seconds of the previous key,
                     // concatenate the value to the accumulator
                     accumulator += "$value\n"
                 } else {
                     // If the current key is more than 15 seconds away from the previous key,
-                    // store the accumulator in the processed entries map and create a new accumulator
-                    if (previousKey != null) {
-                        processedEntries[previousKey!!] = accumulator
+                    // store the accumulator in the grouped entries map and create a new accumulator
+                    if (previousKey != null && startTimestamp != null) {
+                        groupedEntries[startTimestamp] = Pair(previousKey, accumulator)
                     }
                     accumulator = "$value\n"
+                    startTimestamp = key
                 }
+
                 previousKey = key
             }
-
             // Store the last accumulator
-            if (previousKey != null) {
-                processedEntries[previousKey!!] = accumulator
+            if (previousKey != null && startTimestamp != null) {
+                groupedEntries[startTimestamp] = Pair(previousKey, accumulator)
             }
 
-            processedEntries.forEach { (key, value) ->
-                Log.i(activityTag, "Key: $key, Value: $value")
+            // Process the grouped entries
+            for ((start, pair) in groupedEntries) {
+                val end = pair.first
+                val value = pair.second
+
+                if (System.currentTimeMillis() - end < shortTermMemoryPeriod) {
+                    Log.i(activityTag, "found short term memory with everything beyond timestamp: $start")
+                    deleteTimestamp = start // update deleteTimestamp to a smaller value
+                    shortTermMemory = groupedEntries.lastEntry()?.value?.second ?: ""
+                    Log.i(activityTag, "current short term Memory is: $shortTermMemory")
+                    break
+                }
+                storeRelevance("conversation-begin-$start", value)
+                Log.i(activityTag, "Start: $start, End: $end, Value: $value")
+            }
+            // Delete keys before the marked timestamp
+            conversationStore.edit { preferences ->
+                preferences.asMap().keys
+                    .filter { it.name.toLong() < deleteTimestamp }
+                    .forEach { preferences.remove(it) }
             }
         }
     }
