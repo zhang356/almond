@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.media.MediaPlayer
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
@@ -16,7 +18,9 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.dataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.lifecycleScope
@@ -38,7 +42,9 @@ import com.microsoft.cognitiveservices.speech.SpeechRecognizer
 import com.microsoft.cognitiveservices.speech.audio.AudioConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -51,7 +57,10 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.util.SortedMap
+import java.util.TreeMap
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 
 class MainActivity : AppCompatActivity() {
@@ -71,11 +80,21 @@ class MainActivity : AppCompatActivity() {
     val ONBOARDING_DATASTORE_CAREGIVER_ROLE_KEY = "caregiver_role"
 
     val Context.onboardingDataStore: DataStore<Preferences> by preferencesDataStore(name = ONBOARDING_DATASTORE_KEY)
+    val Context.conversationStore: DataStore<Preferences> by preferencesDataStore(name = "conversation")
 
     enum class Mode {
         LISTENING, QNA
     }
     private var mode: Mode = Mode.LISTENING
+
+    private val handler = Handler(Looper.getMainLooper())
+    private val runnableCode: Runnable = object : Runnable {
+        override fun run() {
+            Log.i(activityTag, "run uploadToLongTermMemory and schedule the next run")
+            uploadToLongTermMemory()
+            handler.postDelayed(this, TimeUnit.SECONDS.toMillis(10))
+        }
+    }
 
     private val speechReco: SpeechRecognizer by lazy {
         speechConfig = SpeechConfig.fromSubscription(speechSubscriptionKey, speechRegion)
@@ -91,22 +110,18 @@ class MainActivity : AppCompatActivity() {
     val TAG = "DEBUG"
 
     fun getOnboardingDataStore() = onboardingDataStore
+    fun getConverstaionDataStore() = conversationStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         super.onCreate(savedInstanceState)
 
-        // Register the permissions callback, which handles the user's response to the
-// system permissions dialog. Save the return value, an instance of
-// ActivityResultLauncher. You can use either a val, as shown in this snippet,
-// or a lateinit var in your onAttach() or onCreate() method.
         val requestPermissionLauncher =
             registerForActivityResult(
                 ActivityResultContracts.RequestPermission()
             ) { isGranted: Boolean ->
                 if (isGranted) {
-                    // Permission is granted. Continue the action or workflow in your
-                    // app.
+                    // Permission is granted. Continue the action or workflow in your app.
                     Log.v("DEBUG", "record audio permission granted")
 
                 } else {
@@ -156,6 +171,7 @@ class MainActivity : AppCompatActivity() {
             onboardingDataStore.data.first()
             // You should also handle IOExceptions here.
         }
+        handler.post(runnableCode)
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -214,9 +230,12 @@ class MainActivity : AppCompatActivity() {
             val finalResult = e.result.text
             Log.i(activityTag, finalResult)
             Log.i(activityTag, "mode: $mode")
-            if (finalResult != "" && mode.name == Mode.QNA.name) {
-                stopReco()
-                askRelevance("", finalResult)
+            if (finalResult != "") {
+                storeConversation("Human", finalResult)
+                if (mode.name == Mode.QNA.name) {
+                    askRelevance("", finalResult)
+                    stopReco()
+                }
             }
         }
 
@@ -228,6 +247,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun stopReco() {
+        Log.i(activityTag, "stopReco()")
         speechReco.stopContinuousRecognitionAsync()
     }
 
@@ -267,15 +287,24 @@ class MainActivity : AppCompatActivity() {
             retrofitForElevenLabs.create(ElevenLabsService::class.java)
 
         CoroutineScope(Dispatchers.IO).launch {
-            val onboardingData = runBlocking { onboardingDataStore.data.first() }
-            var relevanceRequestBody = RelevanceRequestBody(RelevanceRequestBodyParam("", question, onboardingData[stringPreferencesKey(ONBOARDING_DATASTORE_PATIENT_NAME_KEY)]?: "", onboardingData[stringPreferencesKey(ONBOARDING_DATASTORE_CAREGIVER_NAME_KEY)]?: "", onboardingData[stringPreferencesKey(ONBOARDING_DATASTORE_CAREGIVER_ROLE_KEY)]?: ""))
+            val onboardingData =  onboardingDataStore.data.first()
+            var relevanceRequestBody = RelevanceRequestBody(RelevanceRequestBodyParam(
+                "",
+                question,
+                onboardingData[stringPreferencesKey(ONBOARDING_DATASTORE_PATIENT_NAME_KEY)]?: "",
+                onboardingData[stringPreferencesKey(ONBOARDING_DATASTORE_CAREGIVER_NAME_KEY)]?: "",
+                onboardingData[stringPreferencesKey(ONBOARDING_DATASTORE_CAREGIVER_ROLE_KEY)]?: ""))
             Log.i(activityTag, relevanceRequestBody.toString())
 
             val response = relevanceService.getRelevanceResponse(relevanceRequestBody)
             if (response.isSuccessful) {
-                val answer = response.body()?.output?.answer
-                Log.i(activityTag, answer ?: "empty")
+                var answer = response.body()?.output?.answer;
+                if (answer == null) {
+                    answer = "looks like my memory is empty on this, I can't answer you this question"
+                }
+                Log.i(activityTag, answer)
                 val elevenLabsRequestBody = ElevenLabsRequestBody(answer)
+                storeConversation("Almond", answer)
                 Log.i(activityTag, "prepare to convert text to speech: $mode")
                 val audioResponse = elevenLabsService.getElevenLabsResponse(elevenLabsRequestBody)
                 if (audioResponse.isSuccessful) {
@@ -316,11 +345,66 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun storeConversation(speaker: String, sentence: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            getConverstaionDataStore().edit { conversation ->
+                conversation[stringPreferencesKey((System.currentTimeMillis()/1000).toString())] = "$speaker said \"$sentence\""
+            }
+        }
+    }
+
+    private fun uploadToLongTermMemory() {
+        val CHUNK_TIME_DIFF = 15
+        CoroutineScope(Dispatchers.IO).launch {
+            Log.i(activityTag, "start printing conversation datastore")
+            val allEntries: Map<Long, String> = conversationStore.data
+                .map { preferences ->
+                    preferences.asMap().mapKeys { it.key.name.toLong() }.mapValues { it.value.toString() }
+                }
+                .first()
+//                .filterKeys { key ->
+//                    // Filter out entries that are less than 15 seconds earlier than the current timestamp
+//                    val currentTime = System.currentTimeMillis() / 1000
+//                    currentTime - key >= CHUNK_TIME_DIFF
+//                }
+            val sortedMap: SortedMap<Long, String> = TreeMap(allEntries)
+
+            // Initialize accumulator and previous key
+            var accumulator = ""
+            var previousKey: Long? = null
+            val processedEntries = TreeMap<Long, String>()
+
+            sortedMap.forEach { (key, value) ->
+                if (previousKey != null && key - previousKey!! < CHUNK_TIME_DIFF) {
+                    // If the current key is within 15 seconds of the previous key,
+                    // concatenate the value to the accumulator
+                    accumulator += "$value\n"
+                } else {
+                    // If the current key is more than 15 seconds away from the previous key,
+                    // store the accumulator in the processed entries map and create a new accumulator
+                    if (previousKey != null) {
+                        processedEntries[previousKey!!] = accumulator
+                    }
+                    accumulator = "$value\n"
+                }
+                previousKey = key
+            }
+
+            // Store the last accumulator
+            if (previousKey != null) {
+                processedEntries[previousKey!!] = accumulator
+            }
+
+            processedEntries.forEach { (key, value) ->
+                Log.i(activityTag, "Key: $key, Value: $value")
+            }
+        }
+    }
+
     companion object {
         private const val speechSubscriptionKey = "7404f9e42967403e8f63d646646c8195"
         private const val speechRegion = "eastus"
         private const val activityTag = "MainActivity"
         private val executorService = Executors.newCachedThreadPool()
     }
-
 }
