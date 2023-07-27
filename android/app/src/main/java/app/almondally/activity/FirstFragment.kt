@@ -4,6 +4,8 @@ import android.content.Intent
 import android.content.Context
 import android.media.MediaPlayer
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -25,6 +27,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 
 
 /**
@@ -77,14 +80,22 @@ class FirstFragment : Fragment() {
             RecognizerIntent.FORMATTING_OPTIMIZE_QUALITY
         )
 
-        val mediaPlayer = MediaPlayer.create(context, R.raw.letmethink)
+        val mediaPlayer = MediaPlayer.create(context, R.raw.onboarding)
         mediaPlayer.setOnCompletionListener {
             // (activity as MainActivity).startReco() // this will automatically start listening
             it.reset()
             it.release()
         }
         // (activity as MainActivity).stopReco()
-        mediaPlayer.start()
+        // mediaPlayer.start()
+
+        val handler = Handler(Looper.getMainLooper())
+        val runnableCode: Runnable = object : Runnable {
+            override fun run() {
+                mediaPlayer.start()
+            }
+        }
+        handler.postDelayed(runnableCode, TimeUnit.SECONDS.toMillis(1))
 
         val fadeIn = AlphaAnimation(0f, 1f)
         fadeIn.interpolator = DecelerateInterpolator() //add this
@@ -95,10 +106,10 @@ class FirstFragment : Fragment() {
         fadeOut.startOffset = 1000
         fadeOut.duration = 1000
 
-        var mHttpLoggingInterceptor = HttpLoggingInterceptor()
+        val mHttpLoggingInterceptor = HttpLoggingInterceptor()
             .setLevel(HttpLoggingInterceptor.Level.BODY)
 
-        var mOkHttpClient = OkHttpClient
+        val mOkHttpClient = OkHttpClient
             .Builder()
             .addInterceptor(mHttpLoggingInterceptor)
             .build()

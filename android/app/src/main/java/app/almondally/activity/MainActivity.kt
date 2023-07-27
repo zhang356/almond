@@ -56,6 +56,7 @@ import java.util.SortedMap
 import java.util.TreeMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import kotlin.random.Random
 
 
 class MainActivity : AppCompatActivity() {
@@ -89,7 +90,7 @@ class MainActivity : AppCompatActivity() {
         override fun run() {
             Log.i(activityTag, "run uploadToLongTermMemory and schedule the next run")
             uploadToLongTermMemory()
-            handler.postDelayed(this, TimeUnit.SECONDS.toMillis(10))
+            handler.postDelayed(this, TimeUnit.SECONDS.toMillis(30))
         }
     }
 
@@ -207,7 +208,7 @@ class MainActivity : AppCompatActivity() {
         if (item.title == resources.getString(R.string.listening)) {
             mode = Mode.QNA
             item.title = resources.getString(R.string.qna)
-            val mediaPlayer = MediaPlayer.create(this, R.raw.letmethink)
+            val mediaPlayer = MediaPlayer.create(this, R.raw.qna)
             mediaPlayer.setOnCompletionListener {
                 startReco()
                 it.reset()
@@ -238,11 +239,29 @@ class MainActivity : AppCompatActivity() {
             if (finalResult != "") {
                 storeConversation("Human", finalResult)
                 if (mode.name == Mode.QNA.name) {
-                    askRelevance(shortTermMemory, finalResult)
                     stopReco()
+                    askRelevance(shortTermMemory, finalResult)
+//                    val latencyPlayer = MediaPlayer.create(this, getLatencySource())
+//                    latencyPlayer.setOnCompletionListener {
+//                        it.reset()
+//                        it.release()
+//                    }
+//                    latencyPlayer.start()
+//
+//                    val latencyPlaybackRunnable: Runnable = object : Runnable {
+//                        override fun run() {
+//                            latencyPlayer.start()
+//                        }
+//                    }
+//                    handler.postDelayed(latencyPlaybackRunnable, TimeUnit.SECONDS.toMillis(1))
                 }
             }
         }
+    }
+
+    private fun getLatencySource(): Int {
+        val list = listOf(R.raw.latency1, R.raw.latency2, R.raw.latency3, R.raw.latency4)
+        return list.random()
     }
     fun startReco() {
         val task = speechReco.startContinuousRecognitionAsync()
