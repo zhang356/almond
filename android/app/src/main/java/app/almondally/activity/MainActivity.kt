@@ -15,12 +15,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.datastore.core.DataStore
-import androidx.datastore.dataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.emptyPreferences
-import androidx.datastore.preferences.core.intPreferencesKey
-import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.lifecycleScope
@@ -33,23 +29,17 @@ import app.almondally.databinding.ActivityMainBinding
 import app.almondally.network.BaseURLs
 import app.almondally.network.ElevenLabsRequestBody
 import app.almondally.network.ElevenLabsService
-import app.almondally.network.RelevanceRequestBody
-import app.almondally.network.RelevanceRequestBodyParam
-import app.almondally.network.RelevanceService
-import com.google.gson.Gson
+import app.almondally.network.RelevanceQueryRequestBody
+import app.almondally.network.RelevanceQueryRequestBodyParam
+import app.almondally.network.RelevanceQueryService
 import com.microsoft.cognitiveservices.speech.SpeechConfig
 import com.microsoft.cognitiveservices.speech.SpeechRecognizer
 import com.microsoft.cognitiveservices.speech.audio.AudioConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -71,7 +61,7 @@ class MainActivity : AppCompatActivity() {
     private var speechConfig: SpeechConfig? = null
     private var microphoneStream: MicrophoneStream? = null
 
-    private lateinit var retrofitForRelevance: Retrofit
+    private lateinit var retrofitForRelevanceQuery: Retrofit
     private lateinit var retrofitForElevenLabs: Retrofit
 
     private val ONBOARDING_DATASTORE_KEY = "onboarding_info"
@@ -269,13 +259,13 @@ class MainActivity : AppCompatActivity() {
             .addInterceptor(mHttpLoggingInterceptor)
             .build()
 
-        retrofitForRelevance = Retrofit.Builder()
+        retrofitForRelevanceQuery = Retrofit.Builder()
             .addConverterFactory(GsonConverterFactory.create())
             .client(mOkHttpClient)
-            .baseUrl(BaseURLs.RELEVANCE)
+            .baseUrl(BaseURLs.RELEVANCE_QUERY)
             .build()
-        val relevanceService: RelevanceService =
-            retrofitForRelevance.create(RelevanceService::class.java)
+        val relevanceQueryService: RelevanceQueryService =
+            retrofitForRelevanceQuery.create(RelevanceQueryService::class.java)
 
         retrofitForElevenLabs = Retrofit.Builder()
             .addConverterFactory(GsonConverterFactory.create())
@@ -288,15 +278,15 @@ class MainActivity : AppCompatActivity() {
 
         CoroutineScope(Dispatchers.IO).launch {
             val onboardingData =  onboardingDataStore.data.first()
-            var relevanceRequestBody = RelevanceRequestBody(RelevanceRequestBodyParam(
+            var relevanceQueryRequestBody = RelevanceQueryRequestBody(RelevanceQueryRequestBodyParam(
                 "",
                 question,
                 onboardingData[stringPreferencesKey(ONBOARDING_DATASTORE_PATIENT_NAME_KEY)]?: "",
                 onboardingData[stringPreferencesKey(ONBOARDING_DATASTORE_CAREGIVER_NAME_KEY)]?: "",
                 onboardingData[stringPreferencesKey(ONBOARDING_DATASTORE_CAREGIVER_ROLE_KEY)]?: ""))
-            Log.i(activityTag, relevanceRequestBody.toString())
+            Log.i(activityTag, relevanceQueryRequestBody.toString())
 
-            val response = relevanceService.getRelevanceResponse(relevanceRequestBody)
+            val response = relevanceQueryService.getRelevanceQueryResponse(relevanceQueryRequestBody)
             if (response.isSuccessful) {
                 var answer = response.body()?.output?.answer;
                 if (answer == null) {

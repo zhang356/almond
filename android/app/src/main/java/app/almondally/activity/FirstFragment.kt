@@ -13,22 +13,13 @@ import android.view.ViewGroup
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.AlphaAnimation
 import android.view.animation.DecelerateInterpolator
-import android.widget.Toast
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.lifecycleScope
 import app.almondally.R
 import app.almondally.databinding.FragmentFirstBinding
 import app.almondally.network.BaseURLs
-import app.almondally.network.ElevenLabsRequestBody
 import app.almondally.network.ElevenLabsService
-import app.almondally.network.RelevanceRequestBody
-import app.almondally.network.RelevanceRequestBodyParam
-import app.almondally.network.RelevanceService
+import app.almondally.network.RelevanceQueryService
 import com.google.android.material.snackbar.Snackbar
-import com.google.gson.Gson
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -54,7 +45,7 @@ class FirstFragment : Fragment() {
 
     private lateinit var mediaPlayer: MediaPlayer
 
-    private lateinit var retrofitForRelevance: Retrofit
+    private lateinit var retrofitForRelevanceQuery: Retrofit
     private lateinit var retrofitForElevenLabs: Retrofit
 
     override fun onCreateView(
@@ -104,13 +95,13 @@ class FirstFragment : Fragment() {
             .addInterceptor(mHttpLoggingInterceptor)
             .build()
 
-        retrofitForRelevance = Retrofit.Builder()
+        retrofitForRelevanceQuery = Retrofit.Builder()
             .addConverterFactory(GsonConverterFactory.create())
             .client(mOkHttpClient)
-            .baseUrl(BaseURLs.RELEVANCE)
+            .baseUrl(BaseURLs.RELEVANCE_QUERY)
             .build()
-        val relevanceService: RelevanceService =
-            retrofitForRelevance.create(RelevanceService::class.java)
+        val relevanceQueryService: RelevanceQueryService =
+            retrofitForRelevanceQuery.create(RelevanceQueryService::class.java)
 
         retrofitForElevenLabs = Retrofit.Builder()
             .addConverterFactory(GsonConverterFactory.create())
@@ -134,7 +125,7 @@ class FirstFragment : Fragment() {
                     }
                     val bestMatch = voiceResults[0]
 
-//                    var relevanceRequestBody = RelevanceRequestBody(RelevanceRequestBodyParam("", bestMatch))
+//                    var relevanceRequestBody = RelevanceQueryRequestBody(RelevanceQueryRequestBodyParam("", bestMatch))
 //                    Log.d(TAG, Gson().toJson(relevanceRequestBody))
 //
 //                    var elevenLabsRequestBody = ElevenLabsRequestBody(bestMatch)
