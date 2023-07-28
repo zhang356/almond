@@ -223,7 +223,7 @@ class MainActivity : AppCompatActivity() {
         if (item.title == resources.getString(R.string.listening)) {
             mode = Mode.QNA
             item.title = resources.getString(R.string.qna)
-            val mediaPlayer = MediaPlayer.create(this, R.raw.qna)
+            val mediaPlayer = MediaPlayer.create(getApplicationContext(), R.raw.qna)
             mediaPlayer.setOnCompletionListener {
                 startReco()
                 it.reset()
@@ -263,7 +263,7 @@ class MainActivity : AppCompatActivity() {
                 if (mode.name == Mode.QNA.name) {
                     stopReco()
                     askRelevance(shortTermMemory, finalResult)
-                    val latencyPlayer = MediaPlayer.create(this, getLatencySource())
+                    val latencyPlayer = MediaPlayer.create(getApplicationContext(), getLatencySource())
                     latencyPlayer.setOnCompletionListener {
                         it.reset()
                         it.release()
