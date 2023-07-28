@@ -22,6 +22,7 @@ import app.almondally.databinding.FragmentFirstBinding
 import app.almondally.network.BaseURLs
 import app.almondally.network.ElevenLabsService
 import app.almondally.network.RelevanceQueryService
+import com.bumptech.glide.Glide
 import com.google.android.material.snackbar.Snackbar
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -57,8 +58,6 @@ class FirstFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View? {
         _binding = FragmentFirstBinding.inflate(inflater, container, false)
-        binding.question.visibility = View.INVISIBLE
-        binding.answer.visibility = View.INVISIBLE
         return binding.root
     }
 
@@ -85,6 +84,7 @@ class FirstFragment : Fragment() {
             // (activity as MainActivity).startReco() // this will automatically start listening
             it.reset()
             it.release()
+            updateFace(R.drawable.listening)
         }
         // (activity as MainActivity).stopReco()
         // mediaPlayer.start()
@@ -93,6 +93,7 @@ class FirstFragment : Fragment() {
         val runnableCode: Runnable = object : Runnable {
             override fun run() {
                 mediaPlayer.start()
+                updateFace(R.drawable.speaking)
             }
         }
         handler.postDelayed(runnableCode, TimeUnit.SECONDS.toMillis(1))
@@ -164,7 +165,7 @@ class FirstFragment : Fragment() {
 //                        }
 //
 //                    }
-
+/*
                     // then display recognized text
 //                    binding.question.visibility = View.INVISIBLE
                     binding.question.startAnimation(fadeOut)
@@ -178,7 +179,7 @@ class FirstFragment : Fragment() {
                     binding.answer.text = "Hey Phillip, let me think. "
                     binding.answer.visibility = View.VISIBLE
                     binding.answer.startAnimation(fadeIn)
-
+*/
                     mediaPlayer.start() // no need to call prepare(); create() does that for you
                 }
 
@@ -223,6 +224,12 @@ class FirstFragment : Fragment() {
         binding.fabAsk.setOnClickListener { view ->
             onAskButtonTapped(view)
         }
+    }
+
+    public fun updateFace(drawable: Int) {
+        Glide.with(requireContext())
+            .load(drawable)
+            .into(binding.face)
     }
 
     override fun onDestroyView() {

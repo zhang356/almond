@@ -15,8 +15,18 @@
             android:layout_height="match_parent"
             android:padding="16dp">
 
+            <androidx.appcompat.widget.AppCompatImageView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                android:id="@+id/face" />
+
             <TextView
                 android:id="@+id/question"
+                android:visibility="gone"
                 style="@style/TextAppearance.MdcTypographyStyles.Body1"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -31,6 +41,7 @@
 
             <TextView
                 android:id="@+id/answer"
+                android:visibility="gone"
                 style="@style/TextAppearance.MdcTypographyStyles.Body1"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -48,6 +59,7 @@
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab_ask"
+        android:visibility="gone"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|right"

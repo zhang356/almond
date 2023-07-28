@@ -22,6 +22,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.findNavController
+import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.navigateUp
 import androidx.navigation.ui.setupActionBarWithNavController
@@ -56,7 +57,6 @@ import java.util.SortedMap
 import java.util.TreeMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import kotlin.random.Random
 
 
 class MainActivity : AppCompatActivity() {
@@ -216,6 +216,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onSwitchModeButtonTapped(item: MenuItem) {
+        val navHostFragment: NavHostFragment =
+        supportFragmentManager.findFragmentById(R.id.nav_host_fragment_content_main) as NavHostFragment
+        val currentFragment:FirstFragment = navHostFragment.childFragmentManager.fragments[0] as FirstFragment
+
         if (item.title == resources.getString(R.string.listening)) {
             mode = Mode.QNA
             item.title = resources.getString(R.string.qna)
@@ -224,12 +228,16 @@ class MainActivity : AppCompatActivity() {
                 startReco()
                 it.reset()
                 it.release()
+                currentFragment.updateFace(R.drawable.listening)
             }
             stopReco()
             mediaPlayer.start()
+
+            currentFragment.updateFace(R.drawable.speaking)
         } else if (item.title == resources.getString(R.string.qna)) {
             mode = Mode.LISTENING
             item.title = resources.getString(R.string.listening)
+            currentFragment.updateFace(R.drawable.listening)
         }
     }
 
@@ -244,6 +252,9 @@ class MainActivity : AppCompatActivity() {
     }
     private fun initReco() {
         speechReco.recognized.addEventListener { sender, e ->
+            val navHostFragment: NavHostFragment =
+                supportFragmentManager.findFragmentById(R.id.nav_host_fragment_content_main) as NavHostFragment
+            val currentFragment:FirstFragment = navHostFragment.childFragmentManager.fragments[0] as FirstFragment
             val finalResult = e.result.text
             Log.i(activityTag, finalResult)
             Log.i(activityTag, "mode: $mode")
@@ -256,10 +267,12 @@ class MainActivity : AppCompatActivity() {
                     latencyPlayer.setOnCompletionListener {
                         it.reset()
                         it.release()
+                        currentFragment.updateFace(R.drawable.thinking)
                     }
                     val latencyPlaybackRunnable: Runnable = object : Runnable {
                         override fun run() {
                             latencyPlayer.start()
+                            currentFragment.updateFace(R.drawable.speaking)
                         }
                     }
                     handler.postDelayed(latencyPlaybackRunnable, TimeUnit.SECONDS.toMillis(1))
@@ -376,6 +389,13 @@ class MainActivity : AppCompatActivity() {
                                 setDataSource(tempFile.absolutePath)
                                 prepare()
                                 start()
+                                CoroutineScope(Dispatchers.Main).launch {
+                                    val navHostFragment: NavHostFragment =
+                                        supportFragmentManager.findFragmentById(R.id.nav_host_fragment_content_main) as NavHostFragment
+                                    val currentFragment: FirstFragment =
+                                        navHostFragment.childFragmentManager.fragments[0] as FirstFragment
+                                    currentFragment.updateFace(R.drawable.speaking)
+                                }
                                 setOnCompletionListener {
                                     Log.i(activityTag, "playback finished: $mode")
                                     mode = Mode.QNA
@@ -383,6 +403,13 @@ class MainActivity : AppCompatActivity() {
                                     Log.i(activityTag, "convert mode to Q&A: $mode")
                                     it.reset()
                                     it.release()
+                                    CoroutineScope(Dispatchers.Main).launch {
+                                        val navHostFragment: NavHostFragment =
+                                            supportFragmentManager.findFragmentById(R.id.nav_host_fragment_content_main) as NavHostFragment
+                                        val currentFragment: FirstFragment =
+                                            navHostFragment.childFragmentManager.fragments[0] as FirstFragment
+                                        currentFragment.updateFace(R.drawable.listening)
+                                    }
                                 }
                             }
                         } catch (e: IOException) {
