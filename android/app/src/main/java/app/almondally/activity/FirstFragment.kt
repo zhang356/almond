@@ -226,7 +226,7 @@ class FirstFragment : Fragment() {
         }
     }
 
-    public fun updateFace(drawable: Int) {
+    fun updateFace(drawable: Int) {
         Glide.with(requireContext())
             .load(drawable)
             .into(binding.face)

@@ -71,6 +71,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var retrofitForRelevanceStore: Retrofit
     private lateinit var retrofitForElevenLabs: Retrofit
 
+    private lateinit var latencyPlayer: MediaPlayer
+    private lateinit var tempMediaPlayer: MediaPlayer
+
+
     private val ONBOARDING_DATASTORE_KEY = "onboarding_info"
     val ONBOARDING_DATASTORE_PATIENT_NAME_KEY = "patient_name"
     val ONBOARDING_DATASTORE_CAREGIVER_NAME_KEY = "caregiver_name"
@@ -178,10 +182,11 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             onboardingDataStore.data.first()
+            handler.post(runnableCode)
+            initReco();
             // You should also handle IOExceptions here.
         }
-        handler.post(runnableCode)
-        initReco();
+
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -227,7 +232,9 @@ class MainActivity : AppCompatActivity() {
             mediaPlayer.setOnCompletionListener {
                 startReco()
                 it.reset()
+                Log.i(activityTag, "before releasing: switch mode audio")
                 it.release()
+                Log.i(activityTag, "after releasing: switch mode audio")
                 currentFragment.updateFace(R.drawable.listening)
             }
             stopReco()
@@ -263,16 +270,18 @@ class MainActivity : AppCompatActivity() {
                 if (mode.name == Mode.QNA.name) {
                     stopReco()
                     askRelevance(shortTermMemory, finalResult)
-                    val latencyPlayer = MediaPlayer.create(getApplicationContext(), getLatencySource())
+                    latencyPlayer = MediaPlayer.create(getApplicationContext(), getLatencySource())
                     latencyPlayer.setOnCompletionListener {
                         it.reset()
+                        Log.i(activityTag, "before releasing: latency audio")
                         it.release()
-                        currentFragment.updateFace(R.drawable.thinking)
+                        Log.i(activityTag, "after releasing: latency audio")
+                         currentFragment.updateFace(R.drawable.thinking)
                     }
                     val latencyPlaybackRunnable: Runnable = object : Runnable {
                         override fun run() {
                             latencyPlayer.start()
-                            currentFragment.updateFace(R.drawable.speaking)
+                             currentFragment.updateFace(R.drawable.speaking)
                         }
                     }
                     handler.postDelayed(latencyPlaybackRunnable, TimeUnit.SECONDS.toMillis(1))
@@ -384,34 +393,35 @@ class MainActivity : AppCompatActivity() {
                             val fos = FileOutputStream(tempFile)
                             fos.write(audioResponseBody)
                             fos.close()
-
-                            MediaPlayer().apply {
-                                setDataSource(tempFile.absolutePath)
-                                prepare()
-                                start()
+                            Log.i(activityTag, "before MediaPlayer().apply")
+                            tempMediaPlayer = MediaPlayer()
+                            tempMediaPlayer.setDataSource(tempFile.absolutePath)
+                            tempMediaPlayer.setOnCompletionListener {
+                                Log.i(activityTag, "playback finished: $mode")
+                                mode = Mode.QNA
+                                startReco()
+                                Log.i(activityTag, "convert mode to Q&A: $mode")
+                                it.reset()
+                                Log.i(activityTag, "before releasing: 11labs readings")
+                                it.release()
+                                Log.i(activityTag, "after releasing: 11labs readings")
                                 CoroutineScope(Dispatchers.Main).launch {
                                     val navHostFragment: NavHostFragment =
                                         supportFragmentManager.findFragmentById(R.id.nav_host_fragment_content_main) as NavHostFragment
                                     val currentFragment: FirstFragment =
                                         navHostFragment.childFragmentManager.fragments[0] as FirstFragment
-                                    currentFragment.updateFace(R.drawable.speaking)
-                                }
-                                setOnCompletionListener {
-                                    Log.i(activityTag, "playback finished: $mode")
-                                    mode = Mode.QNA
-                                    startReco()
-                                    Log.i(activityTag, "convert mode to Q&A: $mode")
-                                    it.reset()
-                                    it.release()
-                                    CoroutineScope(Dispatchers.Main).launch {
-                                        val navHostFragment: NavHostFragment =
-                                            supportFragmentManager.findFragmentById(R.id.nav_host_fragment_content_main) as NavHostFragment
-                                        val currentFragment: FirstFragment =
-                                            navHostFragment.childFragmentManager.fragments[0] as FirstFragment
-                                        currentFragment.updateFace(R.drawable.listening)
-                                    }
+                                    currentFragment.updateFace(R.drawable.listening)
                                 }
                             }
+                            CoroutineScope(Dispatchers.Main).launch {
+                                val navHostFragment: NavHostFragment =
+                                    supportFragmentManager.findFragmentById(R.id.nav_host_fragment_content_main) as NavHostFragment
+                                val currentFragment: FirstFragment =
+                                    navHostFragment.childFragmentManager.fragments[0] as FirstFragment
+                                currentFragment.updateFace(R.drawable.speaking)
+                            }
+                            tempMediaPlayer.prepare()
+                            tempMediaPlayer.start()
                         } catch (e: IOException) {
                             Log.e("Exception", "File write failed: $e")
                         }
