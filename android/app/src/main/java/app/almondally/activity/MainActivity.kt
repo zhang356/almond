@@ -208,7 +208,10 @@ class MainActivity : AppCompatActivity() {
                 onSwitchModeButtonTapped(item)
                 true
             }
-
+            R.id.reminiscence -> {
+                onReminiscenceButtonTapped(item)
+                true
+            }
             else -> super.onOptionsItemSelected(item)
         }
     }
@@ -218,6 +221,22 @@ class MainActivity : AppCompatActivity() {
         return navController.navigateUp(appBarConfiguration)
                 || super.onSupportNavigateUp()
 
+    }
+
+    private fun onReminiscenceButtonTapped(item: MenuItem) {
+        val navHostFragment: NavHostFragment =
+            supportFragmentManager.findFragmentById(R.id.nav_host_fragment_content_main) as NavHostFragment
+        val currentFragment:FirstFragment = navHostFragment.childFragmentManager.fragments[0] as FirstFragment
+        val mediaPlayer = MediaPlayer.create(getApplicationContext(), R.raw.reminiscence)
+        mediaPlayer.setOnCompletionListener {
+            startReco()
+            it.reset()
+            it.release()
+            currentFragment.updateFace(R.drawable.listening)
+        }
+        stopReco()
+        mediaPlayer.start()
+        currentFragment.updateFace(R.drawable.speaking)
     }
 
     private fun onSwitchModeButtonTapped(item: MenuItem) {

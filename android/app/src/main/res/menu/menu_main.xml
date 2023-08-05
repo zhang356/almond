@@ -13,4 +13,9 @@
         android:orderInCategory="100"
         android:title="@string/listening"
         app:showAsAction="never" />
+    <item
+        android:id="@+id/reminiscence"
+        android:orderInCategory="100"
+        android:title="reminiscence"
+        app:showAsAction="never" />
 </menu>
